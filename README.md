@@ -3,7 +3,7 @@
 **Spring-Boot-Dashboard zum Suchen, Herunterladen und Einpflegen von Musik in eine bestehende Navidrome-Bibliothek**
 
 Stand: 18.09.2026 · Autor: Nico
-
+Projekleiter: Leitner
 ---
 
 ## 1. Ziel in einem Satz
