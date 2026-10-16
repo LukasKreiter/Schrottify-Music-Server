@@ -103,23 +103,24 @@ Wichtig: `/srv/slskd/downloads` und `/srv/music` liegen **auf demselben Dateisys
 ### 5.2 Paketstruktur (Java)
 
 ```
-de.nico.musicuploader
-├── MusicUploaderApplication.java
+auk.spl.schrottify
+├── SchrottifyApplication.java
 ├── config/            SecurityConfig, RestClientConfig, AsyncConfig, AppProperties
 ├── web/
 │   ├── controller/    DashboardController, SearchController, JobController, SettingsController
 │   ├── dto/           SearchFormDto, JobViewDto, CandidateViewDto
-│   └── fragment/      (Thymeleaf-Fragmente für HTMX-Teilrenderings)
+│   └── fragment/      Thymeleaf-Fragmente für HTMX-Teilrenderings
 ├── domain/
 │   ├── job/           DownloadJob, JobItem, JobStatus, JobEvent, Repositories
 │   └── settings/      AppSetting, SettingsService
-├── source/            SourceProvider (Interface), Candidate, SearchQuery
+├── source/            SourceProvider, Candidate, SearchQuery
 │   └── slskd/         SlskdClient, SlskdSourceProvider, SlskdProperties, dto/
 ├── metadata/          MusicBrainzClient, CoverArtClient, ReleaseMetadata, TagWriter
-├── library/           LibraryPathResolver, ImportService, DuplicateDetector, FilePermissions
-├── navidrome/         NavidromeClient (Subsonic), NavidromeAuthenticator, ScanTrigger
+├── library/           LibraryPathResolver, ImportService, FilePermissions
+├── musicserver/
+│   └── subsonic/      SubsonicClient für Navidrome-Authentifizierung, Suche und Scan
 ├── orchestration/     JobQueueService, JobWorker, CandidateScorer, RetryPolicy
-└── support/           Slugify, Fuzzy (Levenshtein/Jaro), AudioFileFilter
+└── support/           Slugify, Fuzzy, AudioFileFilter
 ```
 
 ### 5.3 Technologie-Stack
@@ -130,14 +131,14 @@ de.nico.musicuploader
 | Framework | Spring Boot 3.5.x | aktuell, Support für Java 21, `RestClient` |
 | Build | Gradle (Kotlin DSL) | schnelle inkrementelle Builds; Maven ebenso möglich |
 | Web | Spring MVC + Thymeleaf + HTMX 2 | serverseitiges Rendering, kein JS-Buildstep |
-| Security | Spring Security, Form-Login mit eigenem `AuthenticationProvider` gegen Navidrome | FR-1 |
+| Security | Spring Security, Form-Login mit eigenem `AuthenticationProvider` gegen Navidrome über Subsonic `ping` | FR-1 |
 | Persistenz | Spring Data JPA + **PostgreSQL 16** (Docker) | robuste `SKIP LOCKED`-Queue; H2-File als Leichtgewicht-Alternative |
 | Migration | Flyway | versionierte Schema-Änderungen |
 | HTTP-Client | `RestClient` + Resilience4j (Retry, CircuitBreaker, RateLimiter) | NFR-6 |
 | Tagging | **jaudiotagger** (FLAC/MP3/OGG) — ffmpeg als Fallback | Cover + Tags einbetten |
 | Async | `@Async` mit Virtual-Thread-Executor + `@Scheduled`-Poller | einfache, transparente Queue |
 | Live-Update | HTMX `hx-trigger="every 2s"` auf ein Fragment; später SSE | robust hinter Reverse Proxy |
-| Tests | JUnit 5, Testcontainers (Postgres), WireMock (slskd/Navidrome/MusicBrainz) | NFR-9 |
+| Tests | JUnit 5, Testcontainers (Postgres), WireMock (slskd, Navidrome Subsonic API, MusicBrainz) | NFR-9 |
 | Deployment | Docker Compose (App + Postgres) neben bestehendem slskd/Navidrome, oder systemd-Unit mit Fat-JAR | Wahl nach bestehendem Setup |
 
 ---
@@ -272,11 +273,12 @@ Die Top-N (z. B. 5) Kandidaten werden gespeichert, damit der Fallback bei Abbruc
 - **Vor der Implementierung**: die exakten Endpunktpfade gegen die laufende Instanz verifizieren (slskd bringt eine Swagger-/OpenAPI-Oberfläche mit). Der Adapter kapselt sie, sodass eine Abweichung nur `SlskdClient` betrifft.
 - Sinnvolle slskd-Einstellungen: eigenes Download-Verzeichnis, `remote_file_management` aus, Shares bewusst konfigurieren.
 
-### 9.2 Navidrome
+### 9.2 Navidrome über Subsonic
 
-- **Login-Durchreichung (FR-1)**: eigener `AuthenticationProvider` ruft die Subsonic-Ping-Operation mit `u` + Salt/Token-Verfahren auf; HTTP 200 mit `status="ok"` ⇒ Anmeldung gültig. Das Navidrome-Passwort wird nur für diesen Aufruf gehalten und nicht persistiert; die Session merkt sich lediglich den Benutzernamen.
-- **Duplikatprüfung (FR-4)**: Subsonic-Suche (`search3`) nach Artist + Album; zusätzlich Abgleich über die MusicBrainz-ID, falls Navidrome sie liefert.
-- **Scan-Trigger (FR-12)**: Subsonic-Operation `startScan`, Fortschritt über `getScanStatus`. Alternativ auf Navidromes eigenen Datei-Watcher verlassen und den Trigger in den Einstellungen abschaltbar machen.
+- Es gibt genau einen Musikserver im MVP: Navidrome. Die App spricht dessen Subsonic-kompatible API direkt an; es gibt keine generische Multi-Server-Abstraktion oder separate Navidrome-API-Schicht.
+- **Login-Durchreichung (FR-1)**: der Spring-Security-`AuthenticationProvider` nutzt `SubsonicClient` für `ping` mit `u` + Salt/Token-Verfahren. Eine erfolgreiche Subsonic-Antwort (`status="ok"`) bestätigt den Login. Das Passwort wird nicht persistiert; die Session merkt sich nur den Benutzernamen. Zugangsdaten für spätere API-Aufrufe dürfen ebenfalls nicht dauerhaft gespeichert werden.
+- **Duplikatprüfung (FR-4)**: `SubsonicClient` nutzt `search3` nach Artist + Album; zusätzlich wird die MusicBrainz-ID abgeglichen, falls Navidrome sie liefert.
+- **Scan-Trigger (FR-12)**: `SubsonicClient` nutzt `startScan` und `getScanStatus`. Eine separate Navidrome-spezifische Scan-API wird nicht benötigt; der Datei-Watcher kann alternativ in Navidrome aktiviert bleiben.
 - Schreibrechte: die App muss in die Library schreiben dürfen — dedizierter Systembenutzer `musicuploader` in der Gruppe von Navidrome, Library-Verzeichnis `g+ws`.
 
 ### 9.3 MusicBrainz / Cover Art Archive
@@ -322,7 +324,7 @@ HTMX-Muster: Fortschrittstabelle als eigenes Fragment, das per `hx-get="/jobs/ac
 ## 12. Umsetzungsphasen
 
 ### Phase 0 — Server-Inventur (½ Tag)
-- Navidrome-Version, Library-Pfad, Benutzer/Gruppe, Datei-Watcher an/aus prüfen.
+- Navidrome-Version, Subsonic-Kompatibilität, Library-Pfad, Benutzer/Gruppe, Datei-Watcher an/aus prüfen.
 - slskd installieren bzw. Version prüfen, API-Key anlegen, Download-Verzeichnis auf dasselbe Dateisystem wie die Library legen.
 - Manueller Rauchtest: Suche und Download über die slskd-Web-UI, Datei per Hand in die Library legen, Scan auslösen. **Erst wenn das von Hand funktioniert, lohnt Code.**
 - Endpunkte von slskd und Navidrome per `curl` dokumentieren → Grundlage für die Adapter.
@@ -334,9 +336,9 @@ HTMX-Muster: Fortschrittstabelle als eigenes Fragment, das per `hx-get="/jobs/ac
 - CI (GitHub Actions oder lokal): Build + Tests.
 - **Ergebnis**: „Hello Dashboard" läuft unter `:8080`.
 
-### Phase 2 — Auth + Navidrome-Adapter (1 Tag)
-- `NavidromeClient` (Ping, search3, startScan, getScanStatus) mit WireMock-Tests.
-- `AuthenticationProvider` gegen Navidrome, Form-Login, Session, CSRF.
+### Phase 2 — Auth + Subsonic-Client (1 Tag)
+- `SubsonicClient` (Ping, search3, startScan, getScanStatus) mit WireMock-Tests.
+- `AuthenticationProvider` gegen Navidrome via Subsonic, Form-Login, Session, CSRF.
 - **Ergebnis**: Login mit Navidrome-Account funktioniert, Scan lässt sich per Button auslösen.
 
 ### Phase 3 — Metadaten (1 Tag)
