@@ -109,7 +109,7 @@ auk.spl.schrottify
 ├── SchrottifyApplication.java
 ├── config/            SecurityConfig, RestClientConfig, AppProperties
 ├── web/
-│   ├── controller/    DashboardController, SearchController, JobController, SettingsController
+│   ├── controller/    LoginController, DashboardController, SearchController, JobController, SettingsController
 │   └── dto/           SearchFormDto, JobViewDto, CandidateViewDto
 ├── domain/
 │   └── job/           DownloadJob, JobItem, JobStatus, JobEvent, Repositories
