@@ -102,25 +102,20 @@ Wichtig: `/srv/slskd/downloads` und `/srv/music` liegen **auf demselben Dateisys
 
 ### 5.2 Paketstruktur (Java)
 
+Die Codebasis behält den Web-Bereich mit Controllern und DTOs, das Job-Domain-Modell sowie die Orchestrierung. Nicht benötigte Platzhalter für spätere Entwicklungsphasen (weitere Quellen, Metadaten, Import-Pipeline und Hilfsfunktionen) sind entfernt und werden bei Bedarf ergänzt.
+
 ```
 auk.spl.schrottify
 ├── SchrottifyApplication.java
-├── config/            SecurityConfig, RestClientConfig, AsyncConfig, AppProperties
+├── config/            SecurityConfig, RestClientConfig, AppProperties
 ├── web/
 │   ├── controller/    DashboardController, SearchController, JobController, SettingsController
-│   ├── dto/           SearchFormDto, JobViewDto, CandidateViewDto
-│   └── fragment/      Thymeleaf-Fragmente für HTMX-Teilrenderings
+│   └── dto/           SearchFormDto, JobViewDto, CandidateViewDto
 ├── domain/
-│   ├── job/           DownloadJob, JobItem, JobStatus, JobEvent, Repositories
-│   └── settings/      AppSetting, SettingsService
-├── source/            SourceProvider, Candidate, SearchQuery
-│   └── slskd/         SlskdClient, SlskdSourceProvider, SlskdProperties, dto/
-├── metadata/          MusicBrainzClient, CoverArtClient, ReleaseMetadata, TagWriter
-├── library/           LibraryPathResolver, ImportService, FilePermissions
+│   └── job/           DownloadJob, JobItem, JobStatus, JobEvent, Repositories
+├── orchestration/     JobQueueService, JobWorker, CandidateScorer, RetryPolicy
 ├── musicserver/
 │   └── subsonic/      SubsonicClient für Navidrome-Authentifizierung, Suche und Scan
-├── orchestration/     JobQueueService, JobWorker, CandidateScorer, RetryPolicy
-└── support/           Slugify, Fuzzy, AudioFileFilter
 ```
 
 ### 5.3 Technologie-Stack
