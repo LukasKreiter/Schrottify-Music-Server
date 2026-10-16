@@ -118,6 +118,122 @@ auk.spl.schrottify
 │   └── subsonic/      SubsonicClient für Navidrome-Authentifizierung, Suche und Scan
 ```
 
+#### UML: geplante Klasseninteraktionen
+
+Das Diagramm zeigt die Zielarchitektur der nächsten Entwicklungsphasen. Die Klassen aus späteren Phasen sind konzeptionell und werden erst ergänzt, wenn ihre jeweilige Funktion umgesetzt wird.
+
+```mermaid
+classDiagram
+    class SearchController {
+        +search(SearchFormDto) ReleaseMetadata
+        +enqueue(ReleaseMetadata) DownloadJob
+    }
+    class JobController {
+        +listJobs() List~DownloadJob~
+        +cancel(UUID) void
+        +retry(UUID) void
+    }
+    class SearchFormDto
+    class ReleaseMetadata
+    class DownloadJob {
+        +UUID id
+        +JobStatus status
+        +String mbReleaseId
+        +String targetPath
+    }
+    class JobItem {
+        +UUID id
+        +String trackTitle
+        +String status
+        +long bytesDone
+    }
+    class JobEvent {
+        +Instant at
+        +String level
+        +String message
+    }
+    class JobStatus {
+        <<enumeration>>
+        QUEUED
+        SEARCHING
+        DOWNLOADING
+        IMPORTING
+        SCANNING
+        DONE
+        FAILED
+        CANCELLED
+    }
+    class JobQueueService {
+        +enqueue(ReleaseMetadata, String) DownloadJob
+        +cancel(UUID) void
+        +retry(UUID) void
+    }
+    class DownloadJobRepository {
+        +save(DownloadJob) DownloadJob
+        +claimNext() Optional~DownloadJob~
+        +findById(UUID) Optional~DownloadJob~
+    }
+    class JobWorker {
+        +processNext() void
+    }
+    class CandidateScorer {
+        +rank(List~Candidate~) List~Candidate~
+    }
+    class SourceProvider {
+        <<interface>>
+        +search(ReleaseMetadata) List~Candidate~
+        +download(Candidate) void
+    }
+    class SlskdSourceProvider
+    class Candidate
+    class MusicBrainzClient {
+        +resolve(SearchFormDto) List~ReleaseMetadata~
+    }
+    class SubsonicClient {
+        +authenticate(String, String) boolean
+        +containsRelease(ReleaseMetadata) boolean
+        +startScan() void
+        +getScanStatus() String
+    }
+    class NavidromeAuthenticationProvider {
+        +authenticate(String, String) Authentication
+    }
+    class ImportService {
+        +importFiles(DownloadJob) Path
+    }
+    class TagWriter {
+        +writeTags(Path, ReleaseMetadata) void
+    }
+    class LibraryPathResolver {
+        +resolve(ReleaseMetadata) Path
+    }
+    class FilePermissions {
+        +apply(Path) void
+    }
+
+    SearchController --> SearchFormDto : receives
+    SearchController --> MusicBrainzClient : resolves search
+    SearchController --> SubsonicClient : checks duplicates
+    SearchController --> JobQueueService : enqueues selected release
+    JobController --> JobQueueService : manages jobs
+    JobQueueService --> DownloadJob : creates
+    JobQueueService --> DownloadJobRepository : persists and claims
+    JobWorker --> JobQueueService : claims next job
+    JobWorker --> CandidateScorer : ranks results
+    JobWorker --> SourceProvider : searches and downloads
+    SlskdSourceProvider ..|> SourceProvider : implements
+    SourceProvider --> Candidate : returns
+    JobWorker --> ImportService : imports completed files
+    ImportService --> TagWriter : writes metadata
+    ImportService --> LibraryPathResolver : resolves destination
+    ImportService --> FilePermissions : sets permissions
+    JobWorker --> SubsonicClient : triggers scan
+    NavidromeAuthenticationProvider --> SubsonicClient : validates login
+    DownloadJob "1" *-- "0..*" JobItem : contains
+    DownloadJob "1" *-- "0..*" JobEvent : records
+    DownloadJob --> JobStatus : has
+```
+
 ### 5.3 Technologie-Stack
 
 | Ebene | Wahl | Begründung |
