@@ -23,7 +23,8 @@ public class SubsonicClientStub {
         MessageDigest md = MessageDigest.getInstance("MD5");
         byte[] digest = md.digest(input.getBytes("UTF-8"));
         StringBuilder sb = new StringBuilder();
-        for (byte b : digest) sb.append(String.format("%02x", b));
+        for (byte b : digest)
+            sb.append(String.format("%02x", b));
         return sb.toString();
     }
 
@@ -39,7 +40,8 @@ public class SubsonicClientStub {
         url.append("&c=MyJavaClient");
         url.append("&f=json");
 
-        for (String p : params) url.append("&").append(p);
+        for (String p : params)
+            url.append("&").append(p);
 
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(url.toString()))
@@ -50,10 +52,9 @@ public class SubsonicClientStub {
     }
 
     public static void main(String[] args) throws Exception {
-        SubsonicClientStub client = new SubsonicClientStub("http://localhost:13013/airsonic", "admin", "admin");
+        SubsonicClientStub client = new SubsonicClientStub("http://100.123.238.86:4533", "Schrottify", "HieblerStinkt");
         System.out.println(client.request("ping"));
         System.out.println(client.request("getIndexes"));
     }
 
 }
-
