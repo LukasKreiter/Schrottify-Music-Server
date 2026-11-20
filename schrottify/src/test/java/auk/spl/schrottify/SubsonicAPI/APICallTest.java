@@ -8,8 +8,6 @@ import java.util.UUID;
 import org.junit.jupiter.api.*;
 import static org.junit.jupiter.api.Assertions.*;
 
-
-
 public class APICallTest {
 
     public class SubsonicClient {
@@ -35,18 +33,18 @@ public class APICallTest {
             var md = MessageDigest.getInstance("MD5");
             var bytes = md.digest(s.getBytes());
             var sb = new StringBuilder();
-            for (byte b : bytes) sb.append(String.format("%02x", b));
+            for (byte b : bytes)
+                sb.append(String.format("%02x", b));
             return sb.toString();
         }
     }
 
-
     @Nested
     class SubsonicClientTest {
 
-        private static final String BASE_URL = "http://100.100.179.92:4533"; // ← your server
-        private static final String USER     = "Schrottify";
-        private static final String PASS     = "HieblerStinkt";
+        private static final String BASE_URL = "http://100.123.238.86:4533"; // ← your server
+        private static final String USER = "Schrottify";
+        private static final String PASS = "HieblerStinkt";
 
         @Test
         void ping() throws Exception {

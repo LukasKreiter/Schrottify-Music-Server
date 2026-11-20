@@ -1,11 +1,13 @@
 package auk.spl.schrottify.web.controller;
 
 import auk.spl.schrottify.domain.job.JobStatus;
+import auk.spl.schrottify.service.JobService;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,11 +18,18 @@ import org.springframework.web.multipart.MultipartFile;
 @Controller
 public class JobController {
 
+    private final JobService jobService;
+
+    public JobController(JobService jobService) {
+        this.jobService = jobService;
+    }
+
     /** Starts a download job from a search result ("Auf Server laden"). */
     @PostMapping("/jobs")
     public String createJob(@RequestParam String query,
                             @RequestParam String mode,
                             @RequestParam(required = false) String mbReleaseId) {
+        jobService.createJob(query, mode, mbReleaseId);
         return "redirect:/jobs";
     }
 
@@ -30,37 +39,44 @@ public class JobController {
                            @RequestParam(required = false) String query,
                            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
                            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-                           @RequestParam(defaultValue = "0") int page) {
+                           @RequestParam(defaultValue = "0") int page,
+                           Model model) {
+        model.addAttribute("jobs", jobService.listJobs(status, query, from, to, page));
         return "jobs/list";
     }
 
     /** HTMX fragment with the active jobs, polled every 2s (FR-9). */
     @GetMapping("/jobs/active")
-    public String activeJobs() {
+    public String activeJobs(Model model) {
+        model.addAttribute("activeJobs", jobService.getActiveJobs());
         return "jobs/active :: active";
     }
 
     /** Candidates, files, progress and event log of a job (FR-14). */
     @GetMapping("/jobs/{id}")
-    public String jobDetail(@PathVariable UUID id) {
+    public String jobDetail(@PathVariable UUID id, Model model) {
+        model.addAttribute("job", jobService.getJobDetail(id));
         return "jobs/detail";
     }
 
     /** Cancels a job (FR-13). */
     @PostMapping("/jobs/{id}/cancel")
     public String cancelJob(@PathVariable UUID id) {
+        jobService.cancelJob(id);
         return "redirect:/jobs/" + id;
     }
 
     /** Retries a job (FR-13). */
     @PostMapping("/jobs/{id}/retry")
     public String retryJob(@PathVariable UUID id) {
+        jobService.retryJob(id);
         return "redirect:/jobs/" + id;
     }
 
     /** Deletes a job (FR-13). */
     @PostMapping("/jobs/{id}/delete")
     public String deleteJob(@PathVariable UUID id) {
+        jobService.deleteJob(id);
         return "redirect:/jobs";
     }
 
@@ -73,6 +89,7 @@ public class JobController {
     /** Feeds uploaded files into the import pipeline (FR-15). */
     @PostMapping("/upload")
     public String upload(@RequestParam List<MultipartFile> files) {
+        jobService.uploadFiles(files);
         return "redirect:/jobs";
     }
 }
